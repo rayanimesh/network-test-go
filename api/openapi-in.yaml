@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: DNS Service
+  description: |-
+    Sevice for managing DNS with route53
+  contact:
+    email: iitr.animesh@gmail.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.0.1
+servers:
+  - url: http://localhost:8080/api/
+    description: Local Environment
+paths:
+  /route53/domains:
+    get:
+      summary: List all route53 domains (hosted zones)
+      description: List all route53 domains (hosted zones)
+      operationId: ListRoute53HostedZones
+      responses:
+        '200':
+          description: domains (hosted zones list)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Domain"
+  /route53/domains/{domain}/records:
+    put:
+      summary: Create records for a domain (hosted zone)
+      operationId: CreateRoute53HostedZoneRecord
+      parameters:
+        - name: domain
+          in: path
+          description: domain (hosted zone) to create records
+          required: true
+          schema:
+            $ref: "#/components/schemas/Domain"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DNSRecord"
+      responses:
+        '201':
+          description: DNS record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DNSRecord"
+        '400':
+          description: Invalid DNS record
+        '409':
+          description: Duplicate DNS record
+    get:
+      summary: List records by domain (hosted zone)
+      operationId: ListRoute53HostedZoneRecords
+      parameters:
+        - name: domain
+          in: path
+          description: domain (hosted zone) to get records
+          required: true
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/Domain"
+      responses:
+        '200':
+          description: List records for domain (hosted zone)
+          content:
+            application/json:
+              schema:
+
+                $ref: "#/components/schemas/DNSRecord"
+  /route53/domains/{domain}/records/{name}/{recordType}:
+    get:
+      summary: Get a DNS record with type
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          description: Domain (hosted zone) associated with the records
+          schema:
+            $ref: "#/components/schemas/Domain"
+        - name: name
+          in: path
+          required: true
+          description: DNS record name
+          schema:
+            type: string
+        - name: recordType
+          in: path
+          required: true
+          description: DNS record type
+          schema:
+            $ref: "#/components/schemas/DNSRecordType"
+      responses:
+        '200':
+          description: DNS record exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DNSRecord"
+        '404':
+          description: DNS record does not exist
+    delete:
+      summary: Delete DNS record
+      parameters:
+        - name: domain
+          in: path
+          required: true
+          description: Domain (hosted zone) associated with the record
+          schema:
+            $ref: "#/components/schemas/Domain"
+        - name: name
+          in: path
+          required: true
+          description: DNS record name
+          schema:
+            type: string
+        - name: recordType
+          in: path
+          required: true
+          description: DNS record type
+          schema:
+            $ref: "#/components/schemas/DNSRecordType"
+      responses:
+        '204':
+          description: DNS record deleted
+        '404':
+          description: DNS record does not exist
+
+  /route53/creatednsfromlbtags:
+    put:
+      summary: Create dns record from AWS loadbalancer tags
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoadBalancerInput"
+      responses:
+        '201':
+          description: DNS record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DNSRecord"
+        '400':
+          description: Invalid DNS record
+        '409':
+          description: Duplicate DNS record
+
+components:
+  schemas:
+    Domain:
+      nullable: false
+      type: string
+    DNSRecord:
+      nullable: false
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/DNSRecordType"
+        value:
+          type: array
+          items:
+            type: string
+        ttl:
+          type: integer
+          default: 300
+          minimum: 60
+          maximum: 86400
+    DNSRecordType:
+      nullable: false
+      type: string
+      enum: ['SOA','A','TXT','NS','CNAME','MX','NAPTR','PTR','SRV','SPF','AAAA','CAA','DS']
+    LoadBalancerInput:
+      nullable: false
+      type: object
+      properties:
+        name:
+          type: string
+        #region:
+          #type: string
+        tag_key:
+          type: string
+          default:  'r53_dns'
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
