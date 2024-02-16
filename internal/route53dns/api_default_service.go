@@ -12,19 +12,33 @@ package route53dns
 
 import (
 	"context"
-	"net/http"
 	"errors"
+	"log"
+	"net/http"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
 )
 
 // DefaultAPIService is a service that implements the logic for the DefaultAPIServicer
 // This service should implement the business logic for every endpoint for the DefaultAPI API.
 // Include any external packages or services that will be required by this service.
 type DefaultAPIService struct {
+	Route53Client *route53.Client
 }
 
 // NewDefaultAPIService creates a default api service
 func NewDefaultAPIService() DefaultAPIServicer {
-	return &DefaultAPIService{}
+	ctx := context.TODO()
+
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithSharedConfigProfile("default"),
+	)
+	if err != nil {
+		log.Fatalf("unable to load SDK config, %v", err)
+	}
+	r53Service := route53.NewFromConfig(cfg)
+	return &DefaultAPIService{Route53Client: r53Service}
 }
 
 // CreateRoute53HostedZoneRecord - Create records for a domain (hosted zone)
@@ -57,13 +71,20 @@ func (s *DefaultAPIService) ListRoute53HostedZoneRecords(ctx context.Context, do
 
 // ListRoute53HostedZones - List all route53 domains (hosted zones)
 func (s *DefaultAPIService) ListRoute53HostedZones(ctx context.Context) (ImplResponse, error) {
+	hostedZoneInput := &route53.ListHostedZonesInput{}
+	hostedZones, err := s.Route53Client.ListHostedZones(context.TODO(), hostedZoneInput)
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
+	var hostedZoneNames []string
+	for _, hostedZone := range hostedZones.HostedZones {
+		hostedZoneNames = append(hostedZoneNames, *hostedZone.Name)
+	}
 	// TODO - update ListRoute53HostedZones with the required logic for this service method.
 	// Add api_default_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
 
-	// TODO: Uncomment the next line to return response Response(200, []string{}) or use other options such as http.Ok ...
-	// return Response(200, []string{}), nil
+	return Response(200, hostedZoneNames), nil
 
-	return Response(http.StatusNotImplemented, nil), errors.New("ListRoute53HostedZones method not implemented")
 }
 
 // Route53CreatednsfromlbtagsPut - Create dns record from AWS loadbalancer tags
