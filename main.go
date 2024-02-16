@@ -11,19 +11,26 @@
 package main
 
 import (
+	_ "embed"
 	"log"
 	"net/http"
 
 	route53dns "github.com/GIT_USER_ID/GIT_REPO_ID/internal/route53dns"
+
+	"github.com/flowchartsman/swaggerui"
 )
 
+//go:embed api/openapi.yaml
+var spec []byte
+
 func main() {
-	log.Printf("Server started")
 
 	DefaultAPIService := route53dns.NewDefaultAPIService()
 	DefaultAPIController := route53dns.NewDefaultAPIController(DefaultAPIService)
 
 	router := route53dns.NewRouter(DefaultAPIController)
 
+	router.PathPrefix("/swagger/").Handler(http.StripPrefix("/swagger", swaggerui.Handler(spec)))
+	log.Println("serving on :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }

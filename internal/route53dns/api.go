@@ -36,7 +36,7 @@ type DefaultAPIRouter interface {
 // and updated with the logic required for the API.
 type DefaultAPIServicer interface { 
 	CreateRoute53HostedZoneRecord(context.Context, string, DnsRecord) (ImplResponse, error)
-	ListRoute53HostedZoneRecords(context.Context, []string) (ImplResponse, error)
+	ListRoute53HostedZoneRecords(context.Context, string) (ImplResponse, error)
 	ListRoute53HostedZones(context.Context) (ImplResponse, error)
 	Route53CreatednsfromlbtagsPut(context.Context, LoadBalancerInput) (ImplResponse, error)
 	Route53DomainsDomainRecordsNameRecordTypeDelete(context.Context, string, string, DnsRecordType) (ImplResponse, error)

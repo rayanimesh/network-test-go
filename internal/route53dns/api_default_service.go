@@ -45,7 +45,7 @@ func (s *DefaultAPIService) CreateRoute53HostedZoneRecord(ctx context.Context, d
 }
 
 // ListRoute53HostedZoneRecords - List records by domain (hosted zone)
-func (s *DefaultAPIService) ListRoute53HostedZoneRecords(ctx context.Context, domain []string) (ImplResponse, error) {
+func (s *DefaultAPIService) ListRoute53HostedZoneRecords(ctx context.Context, domain string) (ImplResponse, error) {
 	// TODO - update ListRoute53HostedZoneRecords with the required logic for this service method.
 	// Add api_default_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
 

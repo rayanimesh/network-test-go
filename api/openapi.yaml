@@ -38,9 +38,7 @@ paths:
         name: domain
         required: true
         schema:
-          items:
-            $ref: '#/components/schemas/Domain'
-          type: array
+          $ref: '#/components/schemas/Domain'
         style: simple
       responses:
         "200":

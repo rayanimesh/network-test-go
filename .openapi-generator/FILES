@@ -1,11 +1,6 @@
-.openapi-generator-ignore
-Dockerfile
-README.md
 api/openapi.yaml
-go.mod
 internal/route53dns/api.go
 internal/route53dns/api_default.go
-internal/route53dns/api_default_service.go
 internal/route53dns/error.go
 internal/route53dns/helpers.go
 internal/route53dns/impl.go
@@ -14,4 +9,3 @@ internal/route53dns/model_dns_record.go
 internal/route53dns/model_dns_record_type.go
 internal/route53dns/model_load_balancer_input.go
 internal/route53dns/routers.go
-main.go

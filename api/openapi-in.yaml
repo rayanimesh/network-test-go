@@ -64,8 +64,6 @@ paths:
           description: domain (hosted zone) to get records
           required: true
           schema:
-            type: array
-            items:
               $ref: "#/components/schemas/Domain"
       responses:
         '200':
