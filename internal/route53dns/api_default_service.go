@@ -45,19 +45,40 @@ func NewDefaultAPIService() DefaultAPIServicer {
 
 // CreateRoute53HostedZoneRecord - Create records for a domain (hosted zone)
 func (s *DefaultAPIService) CreateRoute53HostedZoneRecord(ctx context.Context, domain string, dnsRecord DnsRecord) (ImplResponse, error) {
-	// TODO - update CreateRoute53HostedZoneRecord with the required logic for this service method.
-	// Add api_default_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	ttl64 := int64(dnsRecord.Ttl)
+	// TODO - clean and test dnsRecord.value for combination with RecordType
+	joinedValueString := strings.Join(dnsRecord.Value, ",")
+	changeList := []types.Change{}
+	change := types.Change{
+		Action: types.ChangeActionCreate,
+		ResourceRecordSet: &types.ResourceRecordSet{
+			Name: &dnsRecord.Name,
+			Type: ConvertDnsRecordTypeToRRType(dnsRecord.Type),
+			ResourceRecords: []types.ResourceRecord{
+				{
+					Value: &(joinedValueString),
+				},
+			},
+			TTL: &(ttl64),
+		},
+	}
+	changeList = append(changeList, change)
+	changeBatchInput := &types.ChangeBatch{Changes: changeList, Comment: nil}
+	hostedZoneId, err := s.GetHostedZoneIdByHostedZoneName(ctx, domain)
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
 
-	// TODO: Uncomment the next line to return response Response(201, DnsRecord{}) or use other options such as http.Ok ...
-	// return Response(201, DnsRecord{}), nil
+	changeRecordSetInput := &route53.ChangeResourceRecordSetsInput{HostedZoneId: &hostedZoneId, ChangeBatch: changeBatchInput}
+	changeRecordSetO, err := s.Route53Client.ChangeResourceRecordSets(ctx, changeRecordSetInput)
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
 
-	// TODO: Uncomment the next line to return response Response(400, {}) or use other options such as http.Ok ...
-	// return Response(400, nil),nil
-
-	// TODO: Uncomment the next line to return response Response(409, {}) or use other options such as http.Ok ...
-	// return Response(409, nil),nil
-
-	return Response(http.StatusNotImplemented, nil), errors.New("CreateRoute53HostedZoneRecord method not implemented")
+	if changeRecordSetO.ChangeInfo.Status == "PENDING" || changeRecordSetO.ChangeInfo.Status == "INSYNC" {
+		return Response(201, changeRecordSetO.ChangeInfo.Status), nil
+	}
+	return Response(200, changeRecordSetO.ChangeInfo.Status), nil
 }
 
 // ListRoute53HostedZoneRecords - List records by domain (hosted zone)
