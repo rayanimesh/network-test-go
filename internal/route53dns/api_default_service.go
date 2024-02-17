@@ -15,9 +15,11 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
+	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
 
 // DefaultAPIService is a service that implements the logic for the DefaultAPIServicer
@@ -60,13 +62,33 @@ func (s *DefaultAPIService) CreateRoute53HostedZoneRecord(ctx context.Context, d
 
 // ListRoute53HostedZoneRecords - List records by domain (hosted zone)
 func (s *DefaultAPIService) ListRoute53HostedZoneRecords(ctx context.Context, domain string) (ImplResponse, error) {
-	// TODO - update ListRoute53HostedZoneRecords with the required logic for this service method.
-	// Add api_default_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	hostedZoneId, err := s.GetHostedZoneIdByHostedZoneName(ctx, domain)
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
+	resourceRecordSetInput := &route53.ListResourceRecordSetsInput{HostedZoneId: &hostedZoneId}
+	recordSets, err := s.Route53Client.ListResourceRecordSets(context.TODO(), resourceRecordSetInput)
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
 
-	// TODO: Uncomment the next line to return response Response(200, DnsRecord{}) or use other options such as http.Ok ...
-	// return Response(200, DnsRecord{}), nil
+	var hostedDNSRecords []DnsRecord
 
-	return Response(http.StatusNotImplemented, nil), errors.New("ListRoute53HostedZoneRecords method not implemented")
+	for _, recordSet := range recordSets.ResourceRecordSets {
+		var valuesList []string
+		for _, item := range recordSet.ResourceRecords {
+			valuesList = append(valuesList, *item.Value)
+		}
+
+		d := DnsRecord{
+			Name:  *recordSet.Name,
+			Type:  DnsRecordType(string(recordSet.Type)),
+			Value: valuesList,
+			Ttl:   int32(*recordSet.TTL),
+		}
+		hostedDNSRecords = append(hostedDNSRecords, d)
+	}
+	return Response(200, hostedDNSRecords), nil
 }
 
 // ListRoute53HostedZones - List all route53 domains (hosted zones)
@@ -120,14 +142,100 @@ func (s *DefaultAPIService) Route53DomainsDomainRecordsNameRecordTypeDelete(ctx 
 
 // Route53DomainsDomainRecordsNameRecordTypeGet - Get a DNS record with type
 func (s *DefaultAPIService) Route53DomainsDomainRecordsNameRecordTypeGet(ctx context.Context, domain string, name string, recordType DnsRecordType) (ImplResponse, error) {
-	// TODO - update Route53DomainsDomainRecordsNameRecordTypeGet with the required logic for this service method.
-	// Add api_default_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	hostedZoneId, err := s.GetHostedZoneIdByHostedZoneName(ctx, domain)
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
 
-	// TODO: Uncomment the next line to return response Response(200, DnsRecord{}) or use other options such as http.Ok ...
-	// return Response(200, DnsRecord{}), nil
+	resourceRecordSetInput := &route53.ListResourceRecordSetsInput{HostedZoneId: &hostedZoneId, StartRecordName: &name, StartRecordType: ConvertDnsRecordTypeToRRType(recordType)}
 
-	// TODO: Uncomment the next line to return response Response(404, {}) or use other options such as http.Ok ...
-	// return Response(404, nil),nil
+	recordSets, err := s.Route53Client.ListResourceRecordSets(context.TODO(), resourceRecordSetInput)
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
 
-	return Response(http.StatusNotImplemented, nil), errors.New("Route53DomainsDomainRecordsNameRecordTypeGet method not implemented")
+	if len(recordSets.ResourceRecordSets) == 0 {
+		return Response(404, "Record "+name+" not found in hosted zone of"+domain), nil
+	}
+
+	var hostedDNSRecords []DnsRecord
+
+	for _, recordSet := range recordSets.ResourceRecordSets {
+
+		if *recordSet.Name != name {
+			continue
+		}
+		var valuesList []string
+		for _, item := range recordSet.ResourceRecords {
+			valuesList = append(valuesList, *item.Value)
+		}
+
+		d := DnsRecord{
+			Name:  *recordSet.Name,
+			Type:  DnsRecordType(string(recordSet.Type)),
+			Value: valuesList,
+			Ttl:   int32(*recordSet.TTL),
+		}
+		hostedDNSRecords = append(hostedDNSRecords, d)
+	}
+	if len(hostedDNSRecords) == 0 {
+		return Response(404, "Record "+name+" not found"), nil
+	}
+	return Response(200, hostedDNSRecords), nil
+}
+
+// helper function
+func (s *DefaultAPIService) GetHostedZoneIdByHostedZoneName(ctx context.Context, domain string) (string, error) {
+	domain = strings.TrimRight(domain, ".")
+	hostedZoneInput := &route53.ListHostedZonesByNameInput{DNSName: &domain}
+	//https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/route53#ListHostedZonesByNameInput
+	// Provide DNS name if you want it to be first item. Hmm.
+	// Get 0th element from array and check it against name as well to confirm
+	// Also check for no element
+	hostedZones, err := s.Route53Client.ListHostedZonesByName(context.TODO(), hostedZoneInput)
+	if err != nil {
+		return "", err
+	}
+	if len(hostedZones.HostedZones) == 0 {
+		return "", errors.New("Hosted Zone " + domain + " not found (count)")
+	}
+	if strings.TrimRight((*hostedZones.HostedZones[0].Name), ".") == domain {
+		return (*(hostedZones.HostedZones[0]).Id), nil
+	} else {
+		return "", errors.New("Hosted Zone " + domain + " not found")
+	}
+}
+
+// helper to convert DnsRecordType to RRType as both are constants
+func ConvertDnsRecordTypeToRRType(dnsType DnsRecordType) types.RRType {
+	switch dnsType {
+	case SOA:
+		return types.RRTypeSoa
+	case A:
+		return types.RRTypeA
+	case TXT:
+		return types.RRTypeTxt
+	case NS:
+		return types.RRTypeNs
+	case CNAME:
+		return types.RRTypeCname
+	case MX:
+		return types.RRTypeMx
+	case NAPTR:
+		return types.RRTypeNaptr
+	case PTR:
+		return types.RRTypePtr
+	case SRV:
+		return types.RRTypeSrv
+	case SPF:
+		return types.RRTypeSpf
+	case AAAA:
+		return types.RRTypeAaaa
+	case CAA:
+		return types.RRTypeCaa
+	case DS:
+		return types.RRTypeDs
+	default:
+		return ""
+	}
 }
