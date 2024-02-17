@@ -34,9 +34,10 @@ type DefaultAPIService struct {
 func NewDefaultAPIService() DefaultAPIServicer {
 	ctx := context.TODO()
 
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithSharedConfigProfile("default"),
-	)
+	//cfg, err := config.LoadDefaultConfig(ctx,
+	//config.WithSharedConfigProfile("default"),
+	//)
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
@@ -133,9 +134,10 @@ func (s *DefaultAPIService) ListRoute53HostedZones(ctx context.Context) (ImplRes
 
 // Route53CreatednsfromlbtagsPut - Create dns record from AWS loadbalancer tags
 func (s *DefaultAPIService) Route53CreatednsfromlbtagsPut(ctx context.Context, loadBalancerInput LoadBalancerInput) (ImplResponse, error) {
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithSharedConfigProfile("default"),
-	)
+	cfg, err := config.LoadDefaultConfig(ctx)
+	//cfg, err := config.LoadDefaultConfig(ctx,
+	//config.WithSharedConfigProfile("default"),
+	//)
 	if err != nil {
 		log.Fatalf("unable to load SDK config, %v", err)
 	}
