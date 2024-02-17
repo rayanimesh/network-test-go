@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.0
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.29.0
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.38.0
 	github.com/flowchartsman/swaggerui v0.0.0-20221017034628-909ed4f3701b
 	github.com/gorilla/mux v1.8.0

@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
@@ -76,7 +77,7 @@ func (s *DefaultAPIService) CreateRoute53HostedZoneRecord(ctx context.Context, d
 	}
 
 	if changeRecordSetO.ChangeInfo.Status == "PENDING" || changeRecordSetO.ChangeInfo.Status == "INSYNC" {
-		return Response(201, changeRecordSetO.ChangeInfo.Status), nil
+		return Response(201, string(changeRecordSetO.ChangeInfo.Status)+" record name "+dnsRecord.Name), nil
 	}
 	return Response(200, changeRecordSetO.ChangeInfo.Status), nil
 }
@@ -132,19 +133,61 @@ func (s *DefaultAPIService) ListRoute53HostedZones(ctx context.Context) (ImplRes
 
 // Route53CreatednsfromlbtagsPut - Create dns record from AWS loadbalancer tags
 func (s *DefaultAPIService) Route53CreatednsfromlbtagsPut(ctx context.Context, loadBalancerInput LoadBalancerInput) (ImplResponse, error) {
-	// TODO - update Route53CreatednsfromlbtagsPut with the required logic for this service method.
-	// Add api_default_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithSharedConfigProfile("default"),
+	)
+	if err != nil {
+		log.Fatalf("unable to load SDK config, %v", err)
+	}
+	elbv2Client := elasticloadbalancingv2.NewFromConfig(cfg)
+	lbInput := &elasticloadbalancingv2.DescribeLoadBalancersInput{Names: []string{loadBalancerInput.Name}}
+	output, err := elbv2Client.DescribeLoadBalancers(ctx, lbInput)
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
+	if len(output.LoadBalancers) == 0 {
+		return Response(404, nil), nil
+	}
+	var lbArn, dnsName string
 
-	// TODO: Uncomment the next line to return response Response(201, DnsRecord{}) or use other options such as http.Ok ...
-	// return Response(201, DnsRecord{}), nil
+	for _, lb := range output.LoadBalancers {
+		if *lb.LoadBalancerName == loadBalancerInput.Name {
+			lbArn, dnsName = *lb.LoadBalancerArn, *lb.DNSName
+		}
+	}
+	tagslb, err := elbv2Client.DescribeTags(ctx, &elasticloadbalancingv2.DescribeTagsInput{ResourceArns: []string{lbArn}})
+	if err != nil {
+		return Response(http.StatusInternalServerError, nil), err
+	}
+	if len(tagslb.TagDescriptions) == 0 {
+		return Response(404, nil), nil
+	}
+	var tagValue string
+	for _, tags := range tagslb.TagDescriptions {
+		if len(tags.Tags) == 0 {
+			return Response(404, "Tag  with key "+(loadBalancerInput.TagKey)+" not found on Load Balancer "+loadBalancerInput.Name), nil
+		}
+		if *tags.ResourceArn == lbArn {
+			for _, tag := range tags.Tags {
+				if *tag.Key == loadBalancerInput.TagKey {
+					tagValue = *tag.Value
+				}
+			}
+		}
+	}
 
-	// TODO: Uncomment the next line to return response Response(400, {}) or use other options such as http.Ok ...
-	// return Response(400, nil),nil
+	subdomain := strings.TrimLeft(tagValue, ".")
 
-	// TODO: Uncomment the next line to return response Response(409, {}) or use other options such as http.Ok ...
-	// return Response(409, nil),nil
+	parts := strings.Split(subdomain, ".")
 
-	return Response(http.StatusNotImplemented, nil), errors.New("Route53CreatednsfromlbtagsPut method not implemented")
+	sld := strings.Join(parts[len(parts)-2:], ".")
+	dnsRecord := DnsRecord{
+		Name:  subdomain,
+		Value: []string{dnsName},
+		Ttl:   300,
+		Type:  CNAME,
+	}
+	return s.CreateRoute53HostedZoneRecord(ctx, sld, dnsRecord)
 }
 
 // Route53DomainsDomainRecordsNameRecordTypeDelete - Delete DNS record
